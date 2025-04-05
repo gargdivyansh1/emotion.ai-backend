@@ -1,0 +1,6 @@
+__pycache__
+venv/
+.env
+future_consideration
+testingfile
+app/reports/

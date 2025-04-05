@@ -1,0 +1,6 @@
+celery-beat:
+  image: celery:latest
+  depends_on:
+    - redis
+    - celery-worker
+  command: celery -A worker.tasks beat --loglevel=info
