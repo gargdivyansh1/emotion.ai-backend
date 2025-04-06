@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from app.database import get_db
-from app.models import Log, LogType
+from app.models import Log, LogType, LogAction
 from app.schemas import LogOut
 from app.models import User
-from app.utils.auth import admin_required
+from app.utils.auth import admin_required, get_current_user
 
 router = APIRouter(prefix="/logs", tags=["Logs"])
 
@@ -83,3 +83,18 @@ def delete_log(
 
     return {"message": "Log deleted successfully"}
 
+# user
+@router.post("/log-activity")
+def log_activity(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    log_entry = Log(
+        user_id=current_user.id,
+        log_type=LogType.INFO,
+        message=f"User {current_user.email} auto-redirected to dashboard from landing",
+        action=LogAction.VISIT
+    )
+    db.add(log_entry)
+    db.commit()
+    return {"message": "Activity logged"}

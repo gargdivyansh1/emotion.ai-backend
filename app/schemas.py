@@ -35,6 +35,8 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None
+    number_of_session_taken : int = 0
+    number_of_alloted_sessions : int = 3
 
     class Config:
         from_attributes = True
@@ -142,6 +144,7 @@ class LogAction(str, enum.Enum):
     LOGIN = "LOGIN"
     LOGOUT = "LOGOUT"
     REGISTER = "REGISTER"
+    VISIT = "VISIT"
     VIEW_PROFILE = "VIEW_PROFILE"
     UPDATE_PROFILE = "UPDATE_PROFILE"
     DELETE_ACCOUNT = "DELETE_ACCOUNT"
