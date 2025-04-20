@@ -8,7 +8,6 @@ from passlib.context import CryptContext
 import redis
 from typing import Dict
 from app.schemas import UserResponse
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -56,4 +55,3 @@ def admin_required(token: str = Depends(oauth2_scheme), db: Session = Depends(ge
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     return user  
-

@@ -41,6 +41,28 @@ def get_user_emotion_trend_by_id(
 
     return trend
 
+# getting the latest emotion data
+@router.get("/latest/emotion-data/user")
+async def get_data(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trend = db.query(EmotionTrend).filter(
+        EmotionTrend.user_id == current_user.id
+    ).first()
+
+    if not trend:
+        raise HTTPException(status_code=200, detail="Emotion trend not found.")
+
+    session_id = trend.session_id
+
+    data = db.query(EmotionData).filter(EmotionData.session_id == session_id).all()
+
+    if not data:
+        raise HTTPException(status_code=404, detail=f"No emotion data found for session {session_id}")
+
+    return data
+
 # user getting the emotion trends 
 @router.get("/user/emotions-trends")
 def get_user_trends(
@@ -53,6 +75,7 @@ def get_user_trends(
 
     if period_start and period_end:
         query = query.filter(EmotionTrend.period_start >= period_start, EmotionTrend.period_end <= period_end)
+
 
     trends = query.all()
 
@@ -68,6 +91,27 @@ def get_user_trends(
     )
     db.add(log_entry)
     db.commit()
+
+    print(trends)
+    
+    return trends
+
+# for getting 7 onlu 
+@router.get("/user/emotions-trends-seven")
+def get_user_trends(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trends = (
+        db.query(EmotionTrend)
+        .filter(EmotionTrend.user_id == current_user.id)
+        .order_by(EmotionTrend.created_at.desc()) 
+        .limit(7)
+        .all()
+    )
+
+    if not trends:
+        raise HTTPException(status_code=200, detail="No emotion trends found for this user.")
 
     print(trends)
     
@@ -97,6 +141,8 @@ def get_user_emotion_trend_by_id(
     )
     db.add(log_entry)
     db.commit()
+
+    print(trend)
 
     return trend
 

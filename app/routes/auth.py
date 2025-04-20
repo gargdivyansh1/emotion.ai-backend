@@ -22,6 +22,7 @@ def register_user(
     first_user = db.query(User).first()
 
     existing_user = db.query(User).filter(User.email == user.email or User.username == user.username).first()
+    
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -98,9 +99,8 @@ def login_user(
 
 @router.post("/logout")
 def logout(
-    password: str = Body(..., embed=True),  
-    authorization: str = Header(None),
-    db: Session = Depends(get_db),
+    authorization: str = Header(None), 
+    db: Session = Depends(get_db), 
     current_user: dict = Depends(verify_token)
 ):
     if not authorization:
@@ -108,26 +108,22 @@ def logout(
 
     token = authorization.replace("Bearer ", "")
 
-    user = db.query(User).filter(User.id == current_user["user_id"]).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    expires_in = current_user["exp"] - int(datetime.utcnow().timestamp())  
 
-    if not pwd_context.verify(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect password")
-
-    expires_in = current_user["exp"] - int(datetime.utcnow().timestamp())
-    if expires_in > 0:
+    if expires_in > 0: 
         redis_client.setex(f"blacklist:{token}", expires_in, "blacklisted")
 
-    user.jwt_token = None
-    db.commit()
-    db.refresh(user)
+    user = db.query(User).filter(User.id == current_user["user_id"]).first()
+    if user:
+        user.jwt_token = None    
+        db.commit()
+        db.refresh(user)
 
     log_entry = Log(
         user_id=user.id,
         message=f"User {user.email} logged out",
-        timestamp=datetime.utcnow(),
-        action=LogAction.LOGOUT,
+        timestamp=datetime.utcnow(),  
+        action= LogAction.LOGOUT,
         log_type=LogType.INFO
     )
     db.add(log_entry)
@@ -148,7 +144,7 @@ def get_current_user_profile(
     
     log_entry = Log(
         user_id=user.id,
-        message=f"User {user.email} updated their profile",
+        message=f"User {user.email} viewed their profile",
         timestamp=datetime.utcnow(),
         log_type=LogType.INFO,
         action= LogAction.VIEW_PROFILE

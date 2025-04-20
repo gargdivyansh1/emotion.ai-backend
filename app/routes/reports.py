@@ -9,11 +9,12 @@ from app.utils.auth import get_current_user
 from app.repositories.emotion_repo import  get_all_reports_by_user, get_report_by_id_user, get_filtered_reports, admin_get_all_reports_by_user_id
 from app.utils.auth import admin_required
 from app.models import Report ,LogAction, LogType, Log
-from datetime import datetime
-from sqlalchemy import desc, and_
+from datetime import datetime, date
+from sqlalchemy import desc, and_, func
 from app.models import User, ExportStatus
 import asyncio
 from app.services.email_serivce import send_email
+from app.schemas import EmotionReportListResponse
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -106,20 +107,28 @@ def counting(
     
     return {"Total count of the reports" : count}
 
-@router.get("/")
+
+
+
+
+
+@router.get("/", response_model=EmotionReportListResponse)
 def get_all_reports(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     skip: int = Query(0, description="Number of records to skip"),
-    limit: int = Query(10, description="Number of records to return"),
-    sort_by: Literal["date", "accuracy"] = Query("date", description="Sort by 'date' or 'accuracy'"),
+    limit: int = Query(1000, description="Number of records to return"),
 ):
     reports = get_all_reports_by_user(user, db, skip, limit)
 
     if not reports:
         return {"reports": [], "total": 0}
+    
+    total = db.query(func.count(Report.id)).filter(Report.user_id == user.id).scalar()
+    
+    data = {"reports": reports , "total": total}
 
-    return reports
+    return data
 
 @router.get("/{report_id}")
 def get_report_by_id(
@@ -194,12 +203,20 @@ async def export_emotion_pdf(
     
 @router.get("/get_filtered_reports")
 def get_filtered_reports_route(
+    start_date: date = Query(...),
+    end_date: date = Query(...), 
+    limit : int = Query(...),
+    skip : int = Query(...),
     user: User = Depends(get_current_user),
-    start_date: str = None, 
-    end_date: str = None, 
     db: Session = Depends(get_db)
 ):
-    reports = get_filtered_reports(user.id, start_date, end_date, db)
+    
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+
+    print(start)
+
+    reports = get_filtered_reports(start, end, limit, skip, user , db)
     if not reports:
         raise HTTPException(status_code=404, detail="No reports found for the given criteria.")
     

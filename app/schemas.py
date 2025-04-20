@@ -315,3 +315,35 @@ class EmotionForecast(BaseModel):
 
 class ForecastResponse(BaseModel):
     forecast: Dict[str, EmotionForecast]
+
+
+
+class EmotionSummary(BaseModel):
+    happy: Optional[int] = 0
+    sad: Optional[int] = 0
+    angry: Optional[int] = 0
+    surprised: Optional[int] = 0
+    neutral: Optional[int] = 0
+    fear: Optional[int] = 0
+
+class EmotionReport(BaseModel):
+    id: int
+    user_id: int
+    session_id: str
+    report_type: str
+    emotion_summary: EmotionSummary
+    export_format: str
+    file_path: str
+    export_status: str
+    admin_notes: Optional[str]
+    generated_at: datetime
+    comparison_data: Optional[dict] = None
+    weekly_trend: Optional[dict] = None
+    monthly_trend: Optional[dict] = None
+
+class EmotionReportListResponse(BaseModel):
+    reports: List[EmotionReport]
+    total: int
+
+class EmotionReportListRes(BaseModel):
+    reports: List[EmotionReport]

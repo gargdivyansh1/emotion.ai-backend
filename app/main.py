@@ -7,6 +7,13 @@ from app.core.events import start_event, shutdown_event
 
 from app.routes.video_ws import router as websocket_router
 
+# Configure CORS
+origins = [
+    "http://localhost:5173",  # Your frontend origin
+    "http://127.0.0.1:5173",
+]
+
+
 # Initialize FastAPI App
 app = FastAPI(
     title="Emotion Recognition API",

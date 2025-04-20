@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session 
 from sqlalchemy import desc, and_ 
-from datetime import datetime
+from sqlalchemy.sql import func
+from datetime import datetime, date
 from app.models import EmotionData, EmotionTrend, EmotionAccuracy, EmotionType
 import logging
 from collections import defaultdict
@@ -270,10 +271,7 @@ def admin_get_all_reports_by_user_id(
     admin: User = Depends(admin_required),
     user_id: int = None,
     db: Session = Depends(get_db),
-):
-    skip: int = 0,
-    limit: int = 100,   
-
+):   
     query = db.query(Report).filter(Report.user_id == user_id).order_by(desc(Report.generated_at)).all()  
 
     if not query:
@@ -304,7 +302,10 @@ def get_report_by_id_user(
     ).first()
 
     if not report:
-        raise ValueError(f"Report with ID {Report.id} not found for user {user.id}.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Report with ID {report_id} not found for user {user.id}."
+        )
 
     log_entry = Log(
         user_id=user.id,
@@ -379,28 +380,24 @@ def admin_get_all_emotion_trends_user_id(
     return query
 
 def get_filtered_reports(
+        start_date: date, 
+        end_date: date, 
+        limit : Optional[int] = None,
+        skip: Optional[int] = None ,
         user : User = Depends(get_current_user),
-        start_date: str = None, 
-        end_date: str = None, 
-        db: Session = None
+        db: Session = Depends(get_db)
     ):
-    filters = [Report.user_id == user.id]
+
+    query = db.query(Report).filter(Report.user_id == user.id)
 
     if start_date:
-        try:
-            filters.append(Report.created_at >= datetime.strptime(start_date, "%Y-%m-%d"))
-        except ValueError:
-            raise ValueError(f"Invalid start date format: {start_date}")
-
+        query = query.filter(Report.generated_at >= start_date)
+        
     if end_date:
-        try:
-            filters.append(Report.created_at <= datetime.strptime(end_date, "%Y-%m-%d"))
-        except ValueError:
-            raise ValueError(f"Invalid end date format: {end_date}")
+        query = query.filter(Report.generated_at <= end_date)
 
-    query = db.query(Report).filter(and_(*filters)).order_by(desc(Report.created_at)).all()
+    reports = query.order_by(Report.generated_at.desc()).offset(skip).limit(limit).all()
 
-    # not store the value in the log
     log_entry = Log(
         user_id=user.id,
         action=LogAction.GET_FILTERED_REPORTS,
@@ -412,16 +409,4 @@ def get_filtered_reports(
     db.add(log_entry)
     db.commit()
 
-    return query
-
-def get_emotion_data_by_period(
-    db: Session, 
-    user_id: int, 
-    start_date: str, 
-    end_date: str
-):
-    return db.query(EmotionData).filter(
-        EmotionData.user_id == user_id,
-        EmotionData.timestamp >= datetime.strptime(start_date, "%Y-%m-%d"),
-        EmotionData.timestamp <= datetime.strptime(end_date, "%Y-%m-%d")
-    ).all()
+    return {"reports": reports}

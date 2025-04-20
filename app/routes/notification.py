@@ -5,28 +5,28 @@ from app.models import Notification, User
 from app.schemas import NotificationCreate, NotificationOut, NotificationForAll, NotificationOutNew
 from app.utils.auth import get_current_user, admin_required
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from sqlalchemy import func, and_, desc
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
-# for getting all the notifacation by the user
 @router.get("/", response_model=list[NotificationOut])
 def get_all_notifications(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user),
     skip: int = Query(0, description="Number of records to skip"),
     limit: int = Query(10, description="Number of records to return")
-    ):
-
-    query = db.query(Notification).filter(Notification.user_id == current_user.id)
-
-    notifications = query.order_by(desc(Notification.sent_at)).offset(skip).limit(limit).all()
-
-    if not notifications:
-        return []
+):
+    notifications = (
+        db.query(Notification)
+        .filter(Notification.user_id == current_user.id)
+        .order_by(desc(Notification.sent_at))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     
-    return notifications
+    return notifications or []
 
 # for getting the specific notification 
 @router.get("/{notification_id}", response_model=NotificationOut)
@@ -119,11 +119,7 @@ def get_all_notifications(
     )
 
     query = (
-        db.query(
-            Notification.title,
-            Notification.message,
-            Notification.sent_at
-        )
+        db.query(Notification)
         .join(subquery, and_(
             Notification.title == subquery.c.title,
             Notification.message == subquery.c.message,
@@ -136,43 +132,63 @@ def get_all_notifications(
 
     return [{"title": n[0], "message": n[1], "sent_at": n[2]} for n in notifications] 
 
-@router.post("/send-notification-to-user")
+#not done in frontend
+@router.post("/admin/send")
 def send_notification(
-    notification: NotificationCreate,
+    notification: NotificationForAll,
+    user_id: Optional[int] = Query(None, description="User ID to send notifications to (omit to broadcast to all)"),
     db: Session = Depends(get_db),
     admin: User = Depends(admin_required)
 ):
-    user = db.query(User).filter(User.id == notification.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if user_id:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    new_notification = Notification(
-        user_id=notification.user_id,
-        title=notification.title,
-        message=notification.message,
-        notification_type=notification.notification_type.value,
-        status=notification.status,
-        sent_at=datetime.utcnow()
-    )
+        new_notification = Notification(
+            user_id = user.id,
+            title=notification.title,
+            message=notification.message,
+            notification_type=notification.notification_type.value,
+            sent_at=datetime.utcnow()
+        )
 
-    db.add(new_notification)
-    db.commit()
-    db.refresh(new_notification)
+        db.add(new_notification)
+        db.commit()
+        db.refresh(new_notification)
 
-    return new_notification
+        return new_notification
+    else:
+
+        # send to all 
+        users = db.query(User).all()
+
+        if not users:
+            return {"Message": "No users found"}
+        
+        for user in users:
+            new_notification = Notification(
+                user_id=user.id,
+                title=notification.title,
+                message=notification.message,
+                notification_type=notification.notification_type.value,
+                sent_at=datetime.utcnow()
+            )
+
+            db.add(new_notification)
+
+        db.commit()
+
+        return {"message": "Notification send to all users successfully"}
 
 # send notification to all
-@router.post("/send-notification-to-all-users", response_model=dict)
+@router.post("/admin/broadcast", response_model=dict)
 def send_notification_to_all(
     notification: NotificationForAll,
     db: Session = Depends(get_db),
     admin: User = Depends(admin_required)
 ):
-
-    check_admin = db.query(User).filter(User.role == admin.role).all()      
-    if not check_admin:
-        return {"message": "No admin user found"}
-
+    
     users = db.query(User).all()
 
     if not users:
@@ -184,7 +200,6 @@ def send_notification_to_all(
             title=notification.title,
             message=notification.message,
             notification_type=notification.notification_type.value,
-            status=notification.status,
             sent_at=datetime.utcnow())
         db.add(new_notification)
 
@@ -192,41 +207,38 @@ def send_notification_to_all(
 
     return {"message": "Notification sent to all users successfully"}
 
-# for deleting all the notification by the admin
-@router.delete("/admin/clear-all-notifications")
+# for deleting all read or all 
+@router.delete("/admin/delete/all")
 def delete_all_notifications_admin(
     is_read: bool = Query(True),
     db: Session = Depends(get_db),
     admin: User = Depends(admin_required)
 ):
 
-    check_admin = db.query(User).filter(User.role == admin.role).all()      
-    if not check_admin:
-        return {"message": "No admin user found"}
+    query = db.query(Notification)
 
-    notifications = db.query(Notification).filter(Notification.is_read == is_read).all()
+    if is_read is not None:
+        query = query.filter(Notification.is_read == is_read)
 
-    if not notifications:
+    data = query.all()
+
+    if not data:
         return {"message": "No notifications found"}
 
-    for notification in notifications:
+    for notification in data:
         db.delete(notification)
 
     db.commit()
 
     return {"message": "All notifications deleted successfully"}
 
-# for deleting the notification by the admin 
-@router.delete("/admin/{notification_id}")
+# for deleting one notification by admin
+@router.delete("/admin/delete/one/{notification_id}")
 def delete_notification_admin(
     notification_id: int,
     db: Session = Depends(get_db),
     admin: User = Depends(admin_required)
 ):
-
-    check_admin = db.query(User).filter(User.role == admin.role).all()      
-    if not check_admin:
-        return {"message": "No admin user found"}
 
     notification = db.query(Notification).filter(Notification.id == notification_id).first()
 

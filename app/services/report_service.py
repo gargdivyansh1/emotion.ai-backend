@@ -120,11 +120,12 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
             EmotionData.user_id == user_id, 
             EmotionData.session_id == session_id
         ).all()
+        
         if not data:
             raise ValueError("No emotion data found for the given session.")
 
         first_timestamp = data[0].timestamp if data else "N/A"
-        session_duration = 10
+        session_duration = 90
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(
