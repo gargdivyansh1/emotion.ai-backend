@@ -97,7 +97,7 @@ def delete_feedback(
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found")
 
-    if user.id != feedback.user_id and user.role.lower() != UserRole.ADMIN:
+    if user.id != feedback.user_id and user.role.lower() != UserRole.ADMIN: # type: ignore
         raise HTTPException(status_code=403, detail="Not authorized to delete this feedback")
 
     db.delete(feedback)
