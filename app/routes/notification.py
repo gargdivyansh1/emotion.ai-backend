@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Notification, User
-from app.schemas import NotificationCreate, NotificationOut, NotificationForAll, NotificationOutNew
+from app.models import Notification, User, NotificationStatus
+from app.schemas import NotificationOut, NotificationForAll
 from app.utils.auth import get_current_user, admin_required
 from datetime import datetime
 from typing import List, Optional
@@ -11,12 +11,14 @@ from sqlalchemy import func, and_, desc
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 @router.get("/", response_model=list[NotificationOut])
-def get_all_notifications(
+def get_all_notifications_user(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user),
     skip: int = Query(0, description="Number of records to skip"),
     limit: int = Query(10, description="Number of records to return")
 ):
+    
+    print(current_user)
     notifications = (
         db.query(Notification)
         .filter(Notification.user_id == current_user.id)
@@ -50,13 +52,20 @@ def mark_notification_as_read(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-
-    notification = db.query(Notification).filter(Notification.id == notification_id, Notification.user_id == current_user.id).first()
+    notification = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
 
     if not notification:
-        return {"message": "Notification not found"}
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found"
+        )
+    
     notification.is_read = True
+    notification.status = NotificationStatus.READ
+    
     db.commit()
     db.refresh(notification)
 
@@ -80,28 +89,26 @@ def delete_notification(
 
     return {"message": "Notification deleted successfully"}
 
-# for deleting all the notification 
-@router.delete("/clear-all-notifications-user")
+# for clearing all notification by the user
+@router.delete("/clear") 
 def delete_all_notifications(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-
-    notifications = db.query(Notification).filter(Notification.user_id == current_user.id).all()
-
-    if not notifications:
-        return {"message": "No notifications found"}
-
-    for notification in notifications:
-        db.delete(notification)
-
+    deleted_count = db.query(Notification)\
+                     .filter(Notification.user_id == current_user.id)\
+                     .delete()
+    
     db.commit()
 
-    return {"message": "All notifications deleted successfully"}
+    if deleted_count == 0:
+        return {"message": "No notifications found to delete"}
+    
+    return {"message": f"Successfully deleted {deleted_count} notifications"}
 
 
 # now admin
-@router.get("/admin/get-all", response_model=List[NotificationOutNew])
+@router.get("/admin/get-all", response_model=List[NotificationOut])
 def get_all_notifications(
     db: Session = Depends(get_db),
     admin: User = Depends(admin_required),  
@@ -118,21 +125,27 @@ def get_all_notifications(
         .subquery()
     )
 
-    query = (
-        db.query(Notification)
+    notifications = (
+        db.query(
+            Notification.title,
+            Notification.message,
+            Notification.sent_at
+        )
         .join(subquery, and_(
             Notification.title == subquery.c.title,
             Notification.message == subquery.c.message,
             Notification.sent_at == subquery.c.latest_time
         ))
         .order_by(Notification.sent_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
     )
 
-    notifications = query.offset(skip).limit(limit).all()
+    print(notifications)
+    return [{"title": n.title, "message": n.message, "sent_at": n.sent_at} for n in notifications]
 
-    return [{"title": n[0], "message": n[1], "sent_at": n[2]} for n in notifications] 
-
-#not done in frontend
+#sending to one user 
 @router.post("/admin/send")
 def send_notification(
     notification: NotificationForAll,
@@ -181,31 +194,50 @@ def send_notification(
 
         return {"message": "Notification send to all users successfully"}
 
-# send notification to all
-@router.post("/admin/broadcast", response_model=dict)
+# sending to all
+@router.post("/admin/broadcast")
 def send_notification_to_all(
     notification: NotificationForAll,
     db: Session = Depends(get_db),
-    admin: User = Depends(admin_required)
+    admin: User = Depends(admin_required)  
 ):
-    
-    users = db.query(User).all()
+    users = db.query(User).filter(
+        User.is_active == True,
+    ).all()
 
     if not users:
-        return {"message": "No users found"}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active users found"
+        )
 
+    notifications_to_create = []
     for user in users:
-        new_notification = Notification(
-            user_id=user.id, 
-            title=notification.title,
-            message=notification.message,
-            notification_type=notification.notification_type.value,
-            sent_at=datetime.utcnow())
-        db.add(new_notification)
+        notifications_to_create.append(
+            Notification(
+                user_id=user.id,
+                title=notification.title,
+                message=notification.message,
+                notification_type=notification.notification_type.value,
+                status=notification.status.value,
+                sent_at=datetime.utcnow()
+            )
+        )
+    
+    try:
+        db.bulk_save_objects(notifications_to_create)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create notifications: {str(e)}"
+        )
 
-    db.commit()
-
-    return {"message": "Notification sent to all users successfully"}
+    return {
+        "message": f"Notification successfully sent to {len(users)} users",
+        "count": len(users) 
+    }
 
 # for deleting all read or all 
 @router.delete("/admin/delete/all")
