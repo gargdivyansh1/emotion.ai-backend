@@ -68,6 +68,7 @@ def get_all_feedback(
 
     feedback_list = query.filter().offset(skip).limit(limit).all()
 
+    print(feedback_list)
     return feedback_list
 
 @router.get("/my-feedback", response_model=List[UserFeedbackOut])
