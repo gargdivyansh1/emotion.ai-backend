@@ -169,11 +169,15 @@ class NotificationStatus(str, enum.Enum):
     SENT = "sent"
     PENDING = "pending"
     FAILED = "failed"
+    READ = "read"
+    URGENT = "urgent"
 
 class NotificationType(str, enum.Enum):
     AI_ACCURACY = "AI Accuracy"
     EMOTION_REPORT = "Emotion Report"
     INFORMATIVE = "Informative"
+    READ = "read"
+    URGENT = "urgent"
 
 class Notification(Base):
     __tablename__ = "notifications"
