@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, constr, conint, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, constr, conint, Field
 from typing import Optional, Dict, List
 from enum import Enum
 from datetime import datetime, timezone
@@ -167,6 +167,7 @@ class LogAction(str, enum.Enum):
     GET_ONE_RECORD = "GET_ONE_RECORD"
     EMAIL_SENT = "EMAIL_SENT"
     REPORT_CREATED = "REPORT_CREATED"
+    BULK_EXPORT = 'BULK_EXPORT'
 
 #creating log
 class LogCreate(BaseModel):
@@ -204,6 +205,7 @@ class UserFeedbackCreate(BaseModel):
 # user feedback out
 class UserFeedbackOut(UserFeedbackCreate):
     id: int
+    user_id: int
 
 #emotion trend
 class EmotionTrendCreate(BaseModel):
@@ -219,46 +221,54 @@ class EmotionTrendCreate(BaseModel):
 # for out
 class EmotionTrendOut(EmotionTrendCreate):
     id: int
+    emotion_summary : dict
+    emotion: str
+    trend_start_date: datetime
+    trend_end_date: datetime
+    average_emotion_score: float
+
+
+
+
+
+    
 
 class NotificationStatus(str, enum.Enum):
     SENT = "sent"
     PENDING = "pending"
     FAILED = "failed"
+    READ = "read"
+    URGENT = "urgent"
 
 class NotificationType(str, enum.Enum):
     EMOTION_REPORT = "Emotion Report"
     INFORMATIVE = "Informative"
+    URGENT = "Urgent"
 
 # for notification 
 class NotificationCreate(BaseModel):
     user_id : int
     title: str 
     message: str 
-    notification_type: NotificationType = NotificationType.INFORMATIVE
-    status: str = NotificationStatus.PENDING
+    notification_type: NotificationType
+    status: NotificationStatus
+
+class NotificationOut(NotificationCreate):
+    id: int
+    is_read : bool
+    sent_at : datetime
+
+    class Config:
+        from_attributes = True
 
 class NotificationForAll(BaseModel):
     title: str 
     message: str 
-    notification_type: NotificationType = NotificationType.INFORMATIVE
-    status: str = NotificationStatus.PENDING
+    notification_type: NotificationType 
+    status: NotificationStatus
 
 NotificationCreate.model_rebuild()
 
-# for out
-class NotificationOut(NotificationCreate):
-    id: int
-
-    class Config:
-        from_attributes = True
-
-class NotificationOutNew(BaseModel):
-    title: str
-    message: str
-    sent_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ReportType(str, Enum):
@@ -347,3 +357,13 @@ class EmotionReportListResponse(BaseModel):
 
 class EmotionReportListRes(BaseModel):
     reports: List[EmotionReport]
+
+class UserUpdateRequest(BaseModel):
+    current_password: str
+    new_username: Optional[constr(min_length=3, max_length=50)] = None
+    new_email: Optional[EmailStr] = None
+    new_password: Optional[constr(min_length=8)] = None
+    confirm_password: Optional[constr(min_length=8)]= None
+
+class UserDeleteRequest(BaseModel):
+    current_password: str
