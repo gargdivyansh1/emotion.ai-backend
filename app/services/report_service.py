@@ -1,22 +1,16 @@
-from io import StringIO, BytesIO
-from fastapi import Depends, HTTPException
+from io import BytesIO
+from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
-from app.models import EmotionData, EmotionTrend
+from app.models import EmotionData
 from sqlalchemy.orm import Session
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from typing import List
-from sqlalchemy import func
-from datetime import timedelta
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.piecharts import Pie
-from app.models import User, ExportFormat, ExportStatus, Report
+from app.models import User
 from collections import defaultdict
-from app.database import get_db
 import os
 from app.repositories.emotion_repo import save_report 
-from app.utils.auth import get_current_user
 import logging
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
@@ -27,7 +21,6 @@ from collections import defaultdict
 from datetime import datetime
 from io import BytesIO
 import os
-from reportlab.lib.colors import HexColor
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -36,7 +29,7 @@ def generate_pie_chart(data):
     drawing = Drawing(300, 300)
 
     pie = Pie()
-    pie.x = 75   # adjust x to center chart
+    pie.x = 75   
     pie.y = 70
     pie.width = 150
     pie.height = 150
@@ -74,41 +67,6 @@ def generate_pie_chart(data):
 
 def format_emotion_name(emotion_str):
     return str(emotion_str).split(".")[-1] if "." in str(emotion_str) else str(emotion_str)
-
-# def generate_pie_chart(data):
-#     drawing = Drawing(300, 300)
-#     pie = Pie()
-#     pie.x = 75  
-#     pie.y = 50
-#     pie.width = 150
-#     pie.height = 150
-#     pie.data = list(data.values())
-#     raw_labels = list(data.keys())
-#     total = sum(pie.data)
-
-#     if total > 0:
-#         pie.labels = [f"{(val/total)*100:.1f}% - {format_emotion_name(key)}" for key, val in zip(raw_labels, pie.data)]
-#     else:
-#         pie.labels = [format_emotion_name(label) for label in raw_labels]
-
-#     pie.sideLabels = True
-#     pie.simpleLabels = False
-#     pie.slices.strokeWidth = 1.5
-#     pie.slices.strokeColor = colors.black
-
-#     color_palette = [
-#         colors.blue, colors.green, colors.red, colors.purple,
-#         colors.orange, colors.brown, colors.pink, colors.gray
-#     ]
-
-#     for i in range(len(pie.data)):
-#         pie.slices[i].fillColor = color_palette[i % len(color_palette)]
-#         pie.slices[i].popout = 5
-
-#     title = String(85, 230, "Emotion Distribution", fontName="Helvetica-Bold", fontSize=12, fillColor=colors.black)
-#     drawing.add(title)
-#     drawing.add(pie)
-#     return drawing
 
 def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Session):
     try:
@@ -151,17 +109,12 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
         subtitle_style.fontSize = 14
         subtitle_style.spaceAfter = 10
 
-        # Header
         elements.append(Paragraph("Emotion Monitoring Report", header_style))
         elements.append(Paragraph(f"Session ID: {session_id}", bold_style))
         elements.append(Spacer(1, 20))
 
-        # report = db.query(Report).filter(Report.session_id == session_id).first()
-
-        # User Info Table
         user_info = [
             ["User ID:", user.id],
-            # ["Report ID:", report.id],
             ["Report No.:", user.number_of_session_taken],
             ["Username:", user.username],
             ["User Email:", user.email],
@@ -184,25 +137,20 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
         elements.append(user_table)
         elements.append(Spacer(1, 20))
 
-        # Emotion Analysis
         emotion_counts = defaultdict(int)
         for record in data:
             emotion_counts[record.emotion] += 1
         dominant_emotion = max(emotion_counts, key=emotion_counts.get, default="N/A")
 
         elements.append(Paragraph(f"Dominant Emotion: <b>{format_emotion_name(dominant_emotion)}</b>", subtitle_style))
-        # elements.append(Spacer(1, -5))
         
         chart = generate_pie_chart(emotion_counts)
         chart_table = Table([[chart]], colWidths=[440])  
         chart_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (1.5, -1), 'CENTER'),
         ]))
-        # elements.append(Spacer(1, -5))  
         elements.append(chart_table)
-        # elements.append(Spacer(1, 5))
 
-        # Emotion Record Table
         elements.append(Paragraph("Emotion Records", subtitle_style))
 
         table_data = [["ID", "Emotion", "Intensity", "Timestamp"]]
@@ -215,7 +163,7 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
                 str(record.timestamp)
             ])
             if record.emotion == dominant_emotion:
-                row_styles.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor("#dbeeff")))  # Light Blue
+                row_styles.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor("#dbeeff"))) 
 
         emotion_table = Table(table_data, colWidths=[60, 140, 100, 160])
         emotion_table.setStyle(TableStyle([
@@ -235,7 +183,6 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
         elements.append(emotion_table)
         elements.append(Spacer(1, 30))
 
-        # Emotion Summary Table
         elements.append(Paragraph("Emotion Count Summary", subtitle_style))
         summary_data = [["Emotion", "Count"]]
         for emo, count in emotion_counts.items():
@@ -258,7 +205,6 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
         elements.append(summary_table)
         elements.append(Spacer(1, 30))
 
-        # Recommendation
         elements.append(Paragraph(
             "<b>Recommendation:</b> Consider mindfulness practices or guided sessions to help manage emotions and build resilience.",
             bold_style
@@ -294,5 +240,5 @@ def generate_emotion_monitoring_pdf_report(user_id: int, session_id: str, db: Se
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating the PDF report: {str(e)}")
     
-#generate weekly and monthly report router
+# generate weekly and monthly report router
 # pending 
