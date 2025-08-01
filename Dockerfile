@@ -30,3 +30,26 @@ EXPOSE 10000
 
 # Run the FastAPI app using uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]
+
+# Install system dependencies for OpenCV, DeepFace, and PostgreSQL
+RUN apt-get update && apt-get install -y \
+    # PostgreSQL dependencies
+    libpq-dev \
+    # Python build dependencies
+    python3-dev \
+    # OpenCV dependencies (for Haar cascades)
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    # DeepFace & TensorFlow dependencies
+    libopenblas-dev \
+    liblapack-dev \
+    gfortran \
+    # Video/Image processing (optional but recommended)
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    # Clean up to reduce image size
+    && rm -rf /var/lib/apt/lists/*
