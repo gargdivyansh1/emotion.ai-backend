@@ -1,7 +1,6 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    # Database settings
     DATABASE_HOSTNAME: str
     DATABASE_PORT: str
     DATABASE_PASSWORD: str
@@ -11,7 +10,6 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
 
-    # Email settings
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str
