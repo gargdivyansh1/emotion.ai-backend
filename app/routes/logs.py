@@ -93,7 +93,7 @@ def log_activity(
         user_id=current_user.id,
         log_type=LogType.INFO,
         message=f"User {current_user.email} auto-redirected to dashboard from landing",
-        action=LogAction.VISIT
+        action=LogAction.VIEW_PROFILE
     )
     db.add(log_entry)
     db.commit()
