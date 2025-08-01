@@ -31,6 +31,9 @@ EXPOSE 10000
 # Run the FastAPI app using uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]
 
+# Run alembic migration + start FastAPI
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 10000
+
 # Install system dependencies for OpenCV, DeepFace, and PostgreSQL
 RUN apt-get update && apt-get install -y \
     # PostgreSQL dependencies
@@ -53,3 +56,5 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     # Clean up to reduce image size
     && rm -rf /var/lib/apt/lists/*
+
+
