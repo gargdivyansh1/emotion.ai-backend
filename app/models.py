@@ -41,7 +41,7 @@ class User(Base):
     can_export_reports = Column(Boolean, default=False)
     last_login = Column(TIMESTAMP, nullable=True)
     number_of_session_taken = Column(Integer, default = 0)
-    number_of_alloted_sessions = Column(Integer, default = 3)
+    number_of_alloted_sessions = Column(Integer, default = 100)
 
     # Relationship with Emotion Data
     emotion_data = relationship("EmotionData", back_populates="user", cascade="all, delete-orphan")

@@ -37,6 +37,7 @@ class UserResponse(UserBase):
     last_login: Optional[datetime] = None
     number_of_session_taken : int = 0
     number_of_alloted_sessions : int = 3
+    two_factor_enabled : bool = False
 
     class Config:
         from_attributes = True
@@ -367,3 +368,11 @@ class UserUpdateRequest(BaseModel):
 
 class UserDeleteRequest(BaseModel):
     current_password: str
+
+class OTPsend(BaseModel):
+    email: EmailStr
+
+class OTPverify(BaseModel):
+    email: EmailStr
+    otp : str
+    enable: bool
