@@ -30,7 +30,6 @@ def get_all_notifications_user(
     
     return notifications or []
 
-# for getting the specific notification 
 @router.get("/{notification_id}", response_model=NotificationOut)
 def get_notification(
     notification_id: int,
@@ -45,7 +44,6 @@ def get_notification(
 
     return notification
 
-# for reading the notification
 @router.put("/{notification_id}/read", response_model=NotificationOut)
 def mark_notification_as_read(
     notification_id: int,
@@ -71,7 +69,6 @@ def mark_notification_as_read(
 
     return notification
 
-# for user to delete the certain nottification
 @router.delete("/{notification_id}/delete")    
 def delete_notification(
     notification_id: int,
@@ -89,7 +86,6 @@ def delete_notification(
 
     return {"message": "Notification deleted successfully"}
 
-# for clearing all notification by the user
 @router.delete("/clear") 
 def delete_all_notifications(
     db: Session = Depends(get_db),
@@ -107,7 +103,6 @@ def delete_all_notifications(
     return {"message": f"Successfully deleted {deleted_count} notifications"}
 
 
-# now admin
 @router.get("/admin/get-all", response_model=List[NotificationOut])
 def get_all_notifications(
     db: Session = Depends(get_db),
@@ -145,7 +140,6 @@ def get_all_notifications(
     print(notifications)
     return [{"title": n.title, "message": n.message, "sent_at": n.sent_at} for n in notifications]
 
-#sending to one user 
 @router.post("/admin/send")
 def send_notification(
     notification: NotificationForAll,
@@ -173,7 +167,6 @@ def send_notification(
         return new_notification
     else:
 
-        # send to all 
         users = db.query(User).all()
 
         if not users:
@@ -194,7 +187,6 @@ def send_notification(
 
         return {"message": "Notification send to all users successfully"}
 
-# sending to all
 @router.post("/admin/broadcast")
 def send_notification_to_all(
     notification: NotificationForAll,
