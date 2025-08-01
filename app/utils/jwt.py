@@ -1,65 +1,57 @@
-from datetime import datetime, timedelta
-from jose import jwt
-from fastapi import HTTPException, Security
-from fastapi.security import OAuth2PasswordBearer
-from app.config import settings
-import redis
-from datetime import timezone
-from fastapi import status
-from jose import JWTError
-import logging
+from datetime import datetime, timedelta, timezone
+from jose import JWTError, jwt
+from fastapi import HTTPException, status
+from typing import Optional
+import os
+from dotenv import load_dotenv
+from app.models import User
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+load_dotenv()
 
-SECRET_KEY = settings.SECRET_KEY
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv('ALGORITHM')
 
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY must be set in environment variables!")
-
-ALGORITHM = settings.ALGORITHM
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/login")
-
-redis_client = redis.StrictRedis(host="localhost", port=6379, db=0, decode_responses=True)
-
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(days=1)):
-
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + expires_delta  
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
     to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def verify_token(token: str = Security(oauth2_scheme)):
-
-    try:
-
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
-        if redis_client.get(f"blacklist:{token}") == "blacklisted":
-            raise HTTPException(status_code=401, detail="Token has been invalidated (logged out)")
-        
-        return payload
+def verify_token(token: str) -> dict:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-def decode_access_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        logger.info(f"Decoded Token: {payload}")
-        user_id: int = payload.get("user_id")  
-        exp: int = payload.get("exp")  
-
-        if user_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-        if datetime.now(timezone.utc).timestamp() > exp:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-
-        return {"user_id": user_id, "exp": exp}
-
+        if payload.get("user_id") is None:
+            raise credentials_exception
+        return payload
     except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise credentials_exception
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+
+
+def decode_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired"
+        )
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
