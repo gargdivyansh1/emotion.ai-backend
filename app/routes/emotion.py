@@ -5,9 +5,14 @@ from datetime import datetime
 from typing import List
 from app.utils.auth import get_current_user
 from app.models import User, EmotionTrend, Log, LogType, EmotionData
-from typing import Optional
+from app.schemas import EmotionSummary
+from typing import Optional, Dict
 from app.utils.auth import admin_required
 from sqlalchemy import desc
+from datetime import datetime, timedelta
+
+def get_start_of_day(dt: datetime):
+    return dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
 router = APIRouter(
     prefix="/emotion", tags=["Emotion"]
@@ -84,7 +89,7 @@ def get_user_trends(
     
     log_entry = Log(
         user_id=current_user.id,
-        action="VIEW_TRENDS",
+        action="VIEW_TREND",
         message=f"User {current_user.email} viewed their all trends.",
         timestamp=datetime.utcnow(),
         log_type=LogType.INFO
@@ -214,6 +219,60 @@ def getting_them(
         raise HTTPException(status_code=404, detail= "No emotion trend is found for the user {user_id}")
     
     return query
+
+@router.get("/getting_seven_days_count", response_model=List[int])
+async def get_weekly_emotion_trends_count(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    today = get_start_of_day(datetime.utcnow())
+
+    trend_count = []
+    for i in range(6, -1, -1):
+        day_start = today - timedelta(days=i)
+        day_end = day_start + timedelta(days = 1)
+
+        count = db.query(EmotionTrend).filter(
+            EmotionTrend.user_id == user.id,
+            EmotionTrend.created_at >= day_start,
+            EmotionTrend.created_at < day_end
+        ).count()
+
+        trend_count.append(count)
+
+    return trend_count
+
+@router.get("/getting_seven_days_emotions_count", response_model=EmotionSummary)
+async def get_weekly_emotion_counts(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    today = get_start_of_day(datetime.utcnow())
+    seven_days_ago = today - timedelta(days=6)
+
+    emotion_counts: Dict[str, int] = {
+        "happy": 0,
+        "sad": 0,
+        "angry": 0,
+        "neutral": 0,
+        "surprised": 0,
+        "fear": 0
+    }
+
+    entries = db.query(EmotionTrend).filter(
+        EmotionTrend.user_id == user.id,
+        EmotionTrend.created_at >= seven_days_ago
+    ).all()
+
+    for entry in entries:
+        summary = entry.emotion_summary  
+        print("summary", summary)
+
+        for emotion, data in summary.items():
+            if emotion in emotion_counts:
+                emotion_counts[emotion] += data.get("count", 0)
+
+    print("Final Emotion Counts:", emotion_counts)
+
+    return emotion_counts
+
 
 
 
