@@ -297,11 +297,28 @@ async def get_filtered_reports_route(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    reports = get_filtered_reports(
-        start_date=start_date.isoformat() if start_date else None,
-        end_date=end_date.isoformat() if end_date else None,
-        user=current_user,
-        db=db
+    query = db.query(Report).filter(Report.user_id == current_user.id)
+
+    if start_date:
+        print("Filtering start_date:", start_date)
+        query = query.filter(func.date(Report.generated_at) >= start_date)
+
+    if end_date:
+        print("Filtering end_date:", end_date)
+        query = query.filter(func.date(Report.generated_at) <= end_date)
+
+    reports = query.order_by(Report.generated_at.desc()).all()
+
+    log_entry = Log(
+        user_id=current_user.id,
+        action=LogAction.GET_FILTERED_REPORTS,
+        message=f"User {current_user.email} retrieved filtered reports.",
+        timestamp=datetime.utcnow(),
+        log_type=LogType.INFO
     )
+    db.add(log_entry)
+    db.commit()
+
     return {"reports": reports}
+
 
