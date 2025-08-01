@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session 
 from sqlalchemy import desc, and_ 
-from sqlalchemy.sql import func
+from sqlalchemy import func
 from datetime import datetime, date
-from app.models import EmotionData, EmotionTrend, EmotionAccuracy, EmotionType
+from app.models import EmotionData, EmotionTrend, EmotionType
 import logging
 from collections import defaultdict
 from app.models import Report, User, ReportType, ExportFormat, Log, LogType, LogAction, User
@@ -252,7 +252,6 @@ def get_all_reports_by_user(
         logger.warning(f" No reports found for user {user.id}.")
         return None
 
-    # we want to store the information in a log 
     log_entry = Log(
         user_id=user.id,
         action=LogAction.GET_ALL_REPORTS,
@@ -267,29 +266,18 @@ def get_all_reports_by_user(
 
     return reports
 
-def admin_get_all_reports_by_user_id(
-    admin: User = Depends(admin_required),
-    user_id: int = None,
-    db: Session = Depends(get_db),
-):   
-    query = db.query(Report).filter(Report.user_id == user_id).order_by(desc(Report.generated_at)).all()  
-
-    if not query:
-        raise HTTPException(status_code=404 , detail= f"THE report the user {user_id} is not found")
-
-    log_entry = Log(  
-        user_id=admin.id,
-        action=LogAction.GET_ALL_REPORTS,
-        message=f"Admin {admin.email} retrieved all reports for user {user_id}.",
-        timestamp=datetime.utcnow(),
-        log_type=LogType.INFO
-    )
-    db.add(log_entry)       
-    db.commit()
-
-    print(query)
-
-    return query      
+# def get_filtered_reports(start_date: Optional[str] = None, end_date: Optional[str] = None, user: User = None, db: Session = None):
+#     query = db.query(Report).filter(Report.user_id == user.id)
+    
+#     if start_date:
+#         start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+#         query = query.filter(Report.generated_at >= start_date)
+    
+#     if end_date:
+#         end_date = datetime.strptime(end_date, "%Y-%m-%d").date() + timedelta(days=1)
+#         query = query.filter(Report.generated_at < end_date)
+    
+#     return query.all()      
     
 def get_report_by_id_user(
     report_id: int,
@@ -380,23 +368,20 @@ def admin_get_all_emotion_trends_user_id(
     return query
 
 def get_filtered_reports(
-        start_date: date, 
-        end_date: date, 
-        limit : Optional[int] = None,
-        skip: Optional[int] = None ,
-        user : User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-    ):
-
+    start_date: Optional[date],
+    end_date: Optional[date],
+    user: User,
+    db: Session 
+):
     query = db.query(Report).filter(Report.user_id == user.id)
 
     if start_date:
-        query = query.filter(Report.generated_at >= start_date)
-        
-    if end_date:
-        query = query.filter(Report.generated_at <= end_date)
+        query = query.filter(func.date(Report.generated_at) >= start_date)
 
-    reports = query.order_by(Report.generated_at.desc()).offset(skip).limit(limit).all()
+    if end_date:
+        query = query.filter(func.date(Report.generated_at) <= end_date)
+
+    reports = query.order_by(Report.generated_at.desc()).all()
 
     log_entry = Log(
         user_id=user.id,
@@ -409,4 +394,5 @@ def get_filtered_reports(
     db.add(log_entry)
     db.commit()
 
-    return {"reports": reports}
+    return reports
+
