@@ -135,6 +135,7 @@ def complete_login(user: User, db: Session):
     
     user.last_login = datetime.now(timezone.utc)
     user.jwt_token = token
+    user.is_verified = True
     user.is_active = True
 
     if user.role == UserRole.ADMIN:
