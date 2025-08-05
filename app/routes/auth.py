@@ -168,7 +168,7 @@ def complete_login(user: User, db: Session):
 
 @router.post("/logout")
 def logout(
-    authorization: str = Header(None, alias="Authorization"), 
+    authorization: str = Header(None, alias="authorization"), 
     db: Session = Depends(get_db), 
 ):
     if not authorization:
@@ -180,10 +180,6 @@ def logout(
         current_user = verify_token(token)
     except:
         raise HTTPException(status_code=401, detail="Invalid token")
-
-    expires_in = current_user["exp"] - int(datetime.utcnow().timestamp())
-    if expires_in > 0:
-        redis_client.setex(f"blacklist:{token}", expires_in, "blacklisted")
 
     user = db.query(User).filter(User.id == current_user["user_id"]).first()
     if user:
