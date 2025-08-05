@@ -9,7 +9,6 @@ app = FastAPI(
     description="Backend for real-time emotion tracking and analytics",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
 )
 
 app.add_middleware(
@@ -40,5 +39,9 @@ app.include_router(emotion.router)
 app.include_router(two_factor.router)
 
 app.include_router(websocket_router)
+
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 
