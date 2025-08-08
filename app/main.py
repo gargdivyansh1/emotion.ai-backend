@@ -40,7 +40,7 @@ app.include_router(two_factor.router)
 
 app.include_router(websocket_router)
 
-@app.get("/ping")
+@app.head("/ping")
 def ping():
     return {"status": "ok"}
 
